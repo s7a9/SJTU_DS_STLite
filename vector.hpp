@@ -1,6 +1,7 @@
 #ifndef STLITE_VECTOR_HPP
 #define STLITE_VECTOR_HPP
 
+#include <initializer_list>
 #include "allocator.hpp"
 
 class VectorIndexOutOfRangeException {};
@@ -19,6 +20,8 @@ public:
 
         size_t _idx;
 
+        friend class vector::const_iterator;
+
     public:
         iterator(Allocator* p_alloc, size_t idx) {
             _palloc = p_alloc;
@@ -26,18 +29,30 @@ public:
         }
 
         elemType& operator*() {
-            return *_palloc[_idx];
+            return *(_palloc->data(_idx));
         }
 
         iterator& operator++() {
-            if (_palloc.has_value(_idx)) ++_idx;
+            if (_palloc->has_value(_idx)) ++_idx;
             return *this;
+        }
+
+        iterator operator+(int offset) {
+            return iterator(_palloc, _idx + offset);
+        }
+
+        iterator operator-(int offset) {
+            return iterator(_palloc, _idx - offset);
         }
 
         iterator operator++(int) {
             iterator iter(*this);
             ++(*this);
             return iter;
+        }
+
+        friend long long operator-(const iterator& lhs, const iterator& rhs) {
+            return (long long)lhs._idx - rhs._idx;
         }
 
         iterator& operator--() {
@@ -66,54 +81,80 @@ public:
 
         size_t _idx;
 
+        friend class vector;
+
     public:
-        const_iterator(Allocator* p_alloc, size_t idx) :
+        const_iterator(const iterator& iter) :
+            _palloc(iter._palloc), _idx(iter._idx) {}
+
+        const_iterator(const Allocator* p_alloc, size_t idx) :
             _palloc(p_alloc), _idx(idx) {}
 
-        const elemType& operator*() {
-            return *_palloc[_idx];
+        const elemType& operator*() const {
+            return *(_palloc->data(_idx));
         }
 
-        iterator& operator++() {
-            if (_palloc.has_value(_idx)) ++_idx;
+        const_iterator& operator++() {
+            if (_palloc->has_value(_idx)) ++_idx;
             return *this;
         }
 
-        iterator operator++(int) {
+        const_iterator operator++(int) {
             iterator iter(*this);
             ++(*this);
             return iter;
         }
 
-        iterator& operator--() {
+        const_iterator& operator--() {
             if (_idx) --_idx;
             return *this;
         }
 
-        iterator operator--(int) {
+        const_iterator operator--(int) {
             iterator iter(*this);
             --(*this);
             return iter;
         }
 
-        bool operator==(const iterator& rhs) const {
+        const_iterator operator+(int offset) {
+            return const_iterator(_palloc, _idx + offset);
+        }
+
+        const_iterator operator-(int offset) {
+            return const_iterator(_palloc, _idx - offset);
+        }
+
+        friend long long operator-(const const_iterator& lhs, const const_iterator& rhs) {
+            return (long long)lhs._idx - rhs._idx;
+        }
+
+        bool operator==(const const_iterator& rhs) const {
             return _palloc == rhs._palloc && _idx == rhs._idx;
         }
 
-        bool operator!=(const iterator& rhs) const {
+        bool operator!=(const const_iterator& rhs) const {
             return !(*this == rhs);
         }
     };
 
-    vector() noexcept(noexcept(Allocator())) : _allocator(10), _size(0) {}
+    vector() noexcept : _allocator(10), _size(0) {}
 
-    vector(size_t num, const elemType& value) : _allocator(num * 2), _size(num) {
+    vector(std::initializer_list<elemType> list) : 
+        _allocator(list.size() * 2), _size(list.size()) {
+        for (auto i = list.begin(); i != list.end(); ++i) {
+            _allocator.construct(i - list.begin(), *i);
+        }
+    }
+
+    vector(size_t num, const elemType& value) : 
+        _allocator(num * 2), _size(num) {
         for (size_t i = 0; i < _size; ++i) {
             _allocator.construct(i, value);
         }
     }
 
-    vector(const vector& x) : _allocator(x._allocator.length()), _size(x._size) {
+    vector(const vector& x) : 
+        _allocator(x._allocator.length()), _size(x._size) {
         for (size_t i = 0; i < _size; ++i) {
             _allocator.construct(i, x[i]);
         }
@@ -130,7 +171,7 @@ public:
         _allocator.clean();
         _allocator.reallocate(rhs._allocator.length());
         for (size_t i = 0; i < rhs._size; ++i) {
-            new(_allocator[i]) elemType(*(rhs._allocator[i]));
+            _allocator.construct(i, *(rhs._allocator[i]));
         }
         _size = rhs._size;
         return *this;
@@ -140,7 +181,7 @@ public:
         _allocator.clean();
         _allocator.reallocate(rhs._allocator.length());
         for (size_t i = 0; i < rhs._size; ++i) {
-            new(_allocator[i]) elemType(move(*(rhs._allocator[i])));
+            _allocator.construct(i, move(*(rhs._allocator[i])));
             rhs._allocator[i] = nullptr;
         }
         _size = rhs._size;
@@ -168,7 +209,10 @@ public:
     }
 
     void shrink_to_fit() {
-        _allocator.reallocate(max(10ULL, _size * 2));
+        if (_size * 2 < 10)
+            _allocator.reallocate(10);
+        else
+            _allocator.reallocate(_size * 2);
     }
 
     elemType& operator[](size_t idx) {
@@ -217,7 +261,7 @@ public:
         if (_allocator.length() == _size + 1) {
             _allocator.reallocate(_allocator.length() * 2);
         }
-        new(_allocator[_size]) elemType(x);
+        _allocator.construct(_size, x);
         ++_size;
     }
 
@@ -225,7 +269,7 @@ public:
         if (_allocator.length() == _size + 1) {
             _allocator.reallocate(_allocator.length() * 2);
         }
-        new(_allocator[_size]) elemType(x);
+        _allocator.construct(_size, x);
         ++_size;
     }
 
@@ -235,19 +279,19 @@ public:
     }
 
     iterator begin() noexcept {
-        return iterator(_allocator, 0);
+        return iterator(&_allocator, 0);
     }
 
     const_iterator begin() const noexcept {
-        return const_iterator(_allocator, 0);
+        return const_iterator(&_allocator, 0);
     }
 
     iterator end() noexcept {
-        return iterator(_allocator, _size);
+        return iterator(&_allocator, _size);
     }
 
     const_iterator end() const noexcept {
-        return const_iterator(_allocator, _size);
+        return const_iterator(&_allocator, _size);
     }
 
     iterator insert(const_iterator position, const elemType& x) {
@@ -259,7 +303,7 @@ public:
             _allocator.construct(i, move(*_allocator[i - 1]));
             _allocator.remove(i - 1);
         }
-        _allocator.construct(i, x);
+        _allocator.construct(pos, x);
     }
 
     iterator insert(const_iterator position, elemType&& x) {
@@ -268,11 +312,12 @@ public:
         }
         size_t pos = position._idx;
         for (size_t i = _size; i > pos; --i) {
-            _allocator.construct(i, move(*_allocator[i - 1]));
+            _allocator.construct(i, Move(*_allocator[i - 1]));
             _allocator.remove(i - 1);
         }
         _allocator.construct(pos, x);
-        return iterator(_allocator, pos);
+        ++_size;
+        return iterator(&_allocator, pos);
     }
 
     iterator insert(const_iterator position, size_t n, const elemType& x) {
@@ -281,12 +326,13 @@ public:
         }
         size_t pos = position._idx;
         for (size_t i = _size; i > pos; --i) {
-            _allocator.construct(i + n - 1, move(*_allocator[i - 1]));
+            _allocator.construct(i + n - 1, Move(*_allocator[i - 1]));
             _allocator.remove(i - 1);
         }
         for (size_t i = 0; i < n; ++i)
             _allocator.construct(pos + i, x);
-        return iterator(_allocator, pos);
+        _size += n;
+        return iterator(&_allocator, pos);
     }
 
     iterator erase(const_iterator position) {
@@ -299,7 +345,8 @@ public:
             _allocator.construct(i, move(*_allocator[i + 1]));
             _allocator.remove(i + 1);
         }
-        return iterator(_allocator, pos);
+        --_size;
+        return iterator(&_allocator, pos);
     }
 
     iterator erase(const_iterator first, const_iterator last) {
@@ -308,15 +355,19 @@ public:
             _allocator.remove(i);
         }
         while (pos2 < _size) {
-            _allocator.construct(pos1, move(*_allocator[pos2]));
+            _allocator.construct(pos1, Move(*_allocator[pos2]));
             _allocator.remove(pos2);
             ++pos1, ++pos2;
         }
-        return iterator(_allocator, first._idx);
+        _size -= pos2 - pos1;
+        return iterator(&_allocator, first._idx);
     }
 
-    void swap(vector& rhs) {
-
+    void swap(vector& x) {
+        Allocator allocator(x._allocator);
+        _allocator.copy(x._allocator);
+        x._allocator.copy(allocator);
+        ::swap(this->_num, x._num);
     }
 
     void clear() noexcept {
