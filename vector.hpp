@@ -269,22 +269,22 @@ namespace s7a9 {
         }
 
         elemType& front() {
-            if (_size == 0) sjtu::container_is_empty();
+            if (_size == 0) throw sjtu::container_is_empty();
             return *(_allocator[0]);
         }
 
         const elemType& front() const {
-            if (_size == 0) sjtu::container_is_empty();
+            if (_size == 0) throw sjtu::container_is_empty();
             return *(_allocator[0]);
         }
 
         elemType& back() {
-            if (_size == 0) sjtu::container_is_empty();
+            if (_size == 0) throw sjtu::container_is_empty();
             return *(_allocator[_size - 1]);
         }
 
         const elemType& back() const {
-            if (_size == 0) sjtu::container_is_empty();
+            if (_size == 0) throw sjtu::container_is_empty();
             return *(_allocator[_size - 1]);
         }
 
@@ -438,6 +438,7 @@ namespace s7a9 {
 
         void swap(vector& x) {
             _allocator.swap(x._allocator);
+            s7a9::swap(_size, x._size);
         }
 
         void clear() noexcept {

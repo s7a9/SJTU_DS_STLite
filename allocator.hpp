@@ -1,6 +1,7 @@
 #ifndef STLITE_ALLOCATOR_HPP
 #define STLITE_ALLOCATOR_HPP
 
+#include <cstring>
 #include <cstdlib>
 #include "algorithm.hpp"
 
@@ -171,6 +172,128 @@ namespace s7a9 {
         inline void swap(__malloc_allocator& other) noexcept {
             s7a9::swap(_data, other._data);
             s7a9::swap(_used, other._used);
+            s7a9::swap(_num, other._num);
+        }
+    };
+
+    // Basic allocator
+    template <class elemType>
+    class __new_allocator {
+    private:
+        elemType** _data; 
+
+        size_t _num; // Total size
+
+    public:
+        // use new to allocate a pointer table
+        __new_allocator(const size_t num) noexcept :
+            _num(num) {
+            _data = new elemType * [num];
+            memset(_data, 0, sizeof(elemType*) * num);
+        }
+
+        // copy constructor
+        __new_allocator(const __new_allocator& x) : 
+            _num(x._num) {
+            _data = new elemType * [_num];
+            for (size_t i = 0; i < _num; ++i) {
+                if (x[i]) _data[i] = new elemType(*x[i]);
+                else _data[i] = nullptr;
+            }
+        }
+
+        // Move constructor
+        __new_allocator(__new_allocator&& x) noexcept {
+            _num = x._num;
+            _data = x._data;
+            x._data = nullptr;
+            x._num = 0;
+        }
+
+        // free all memory when being deconstructed
+        ~__new_allocator() noexcept {
+            clean();
+            delete[] _data;
+        }
+
+        // resize the memory
+        elemType* reallocate(const size_t num) noexcept {
+            elemType** new_data = new elemType * [num];
+            size_t i;
+            for (i = 0; i < _num && i < num; ++i) {
+                new_data[i] = _data[i];
+            }
+            for (; i < num; ++i) {
+                new_data[i] = nullptr;
+            }
+            for (; i < _num; ++i) {
+                delete _data[i];
+            }
+            delete[] _data;
+            _num = num;
+            return *(_data = new_data);
+        }
+
+        void copy(const __new_allocator& x) {
+            clean();
+            delete[] _data;
+            _num = x._num;
+            _data = new elemType * [_num];
+            for (size_t i = 0; i < _num; ++i) {
+                if (x[i]) _data[i] = new elemType(*x[i]);
+                else _data[i] = nullptr;
+            }
+        }
+
+        inline void remove(size_t idx) {
+            delete _data[idx];
+            _data[idx] = nullptr;
+        }
+
+        inline void construct(size_t idx, const elemType& value) {
+            _data[idx] = new elemType(value);
+        }
+
+        inline void construct(size_t idx, elemType&& value) {
+            _data[idx] = new elemType(value);
+        }
+
+        inline void clean() {
+            if (_data == nullptr) return;
+            for (size_t i = 0; i < _num; ++i)
+                remove(i);
+        }
+
+        inline elemType* data(size_t idx) noexcept {
+            return _data[idx];
+        }
+
+        inline const elemType* data(size_t idx) const noexcept {
+            return _data[idx];
+        }
+
+        inline elemType* operator[](size_t idx) noexcept {
+            return _data[idx];
+        }
+
+        inline const elemType* operator[](size_t idx) const noexcept {
+            return _data[idx];
+        }
+
+        inline size_t length() const noexcept {
+            return _num;
+        }
+
+        inline bool has_value(size_t idx) const noexcept {
+            return _data[idx] != nullptr;
+        }
+
+        inline void set_used(size_t idx, bool val) noexcept {
+            // Useless in this kind of allocator
+        }
+
+        inline void swap(__new_allocator& other) noexcept {
+            s7a9::swap(_data, other._data);
             s7a9::swap(_num, other._num);
         }
     };
