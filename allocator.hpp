@@ -1,9 +1,8 @@
 #ifndef STLITE_ALLOCATOR_HPP
 #define STLITE_ALLOCATOR_HPP
 
-#include <cstring>
 #include <cstdlib>
-#include "algorithm.hpp"
+#include "utilities.hpp"
 
 namespace s7a9 {
     // Basic allocator
@@ -18,7 +17,7 @@ namespace s7a9 {
 
     public:
         // use malloc() to allocate a piece of memory
-        __malloc_allocator(const size_t num) noexcept :
+        explicit __malloc_allocator(const size_t num) noexcept :
             _num(num) {
             _used = static_cast<bool*>(calloc(num, sizeof(bool)));
             _data = static_cast<elemType*>(calloc(num, sizeof(elemType)));
@@ -48,7 +47,7 @@ namespace s7a9 {
         }
 
         // free all memory when being deconstructed
-        ~__malloc_allocator() noexcept {
+        ~__malloc_allocator() {
             for (size_t i = 0; i < _num; ++i) {
                 if (has_value(i))
                     (_data + i)->~elemType();
@@ -105,15 +104,16 @@ namespace s7a9 {
             return _data;
         }*/
 
-        void copy(const __malloc_allocator& x) {
+        void copy(const __malloc_allocator& other) {
+            if (this == &other) return;
             clean();
             free(_data), free(_used);
-            _num = x._num;
+            _num = other._num;
             _used = static_cast<bool*>(calloc(_num, sizeof(bool)));
             _data = static_cast<elemType*>(calloc(_num, sizeof(elemType)));
             for (size_t i = 0; i < _num; ++i) {
-                if (x.has_value(i)) {
-                    new(_data + i) elemType(*x[i]);
+                if (other.has_value(i)) {
+                    new(_data + i) elemType(*other[i]);
                     _used[i] = true;
                 }
             }
@@ -124,6 +124,11 @@ namespace s7a9 {
                 (_data + idx)->~elemType();
                 _used[idx] = false;
             }
+        }
+
+        inline void move_elem(size_t dst, size_t src) {
+            construct(dst, Move(_data[src]));
+            remove(src);
         }
 
         inline void construct(size_t idx, const elemType& value) {
@@ -186,10 +191,12 @@ namespace s7a9 {
 
     public:
         // use new to allocate a pointer table
-        __new_allocator(const size_t num) noexcept :
+        explicit __new_allocator(const size_t num) noexcept :
             _num(num) {
             _data = new elemType * [num];
-            memset(_data, 0, sizeof(elemType*) * num);
+            for (size_t i = 0; i < num; ++i) {
+                _data[i] = nullptr;
+            }
         }
 
         // copy constructor
@@ -211,7 +218,7 @@ namespace s7a9 {
         }
 
         // free all memory when being deconstructed
-        ~__new_allocator() noexcept {
+        ~__new_allocator() {
             clean();
             delete[] _data;
         }
@@ -235,6 +242,7 @@ namespace s7a9 {
         }
 
         void copy(const __new_allocator& x) {
+            if (this == &x) return;
             clean();
             delete[] _data;
             _num = x._num;
@@ -248,6 +256,11 @@ namespace s7a9 {
         inline void remove(size_t idx) {
             delete _data[idx];
             _data[idx] = nullptr;
+        }
+
+        inline void move_elem(size_t dst, size_t src) {
+            _data[dst] = _data[src];
+            _data[src] = nullptr;
         }
 
         inline void construct(size_t idx, const elemType& value) {
@@ -300,20 +313,20 @@ namespace s7a9 {
 
     template <class elemType>
     class __linknode_allocator : public __malloc_allocator<elemType> {
-    private:
-        __linknode_allocator* _next;
-
     public:
         __linknode_allocator(const size_t num, const __linknode_allocator* next) noexcept :
-            __malloc_allocator<elemType>(num), _next(next) {}
+            __malloc_allocator<elemType>(num), next(next) {}
 
-        const __linknode_allocator* next() const noexcept {
-            return _next;
-        }
+        __linknode_allocator* next;
+    };
 
-        __linknode_allocator*& next() noexcept {
-            return _next;
-        }
+    template <class elemType>
+    class __blinknode_allocator : public __malloc_allocator<elemType> {
+    public:
+        __blinknode_allocator(const size_t num, const __blinknode_allocator* next, const __blinknode_allocator* prev) noexcept :
+            __malloc_allocator<elemType>(num), next(next), prev(prev) {}
+
+        __blinknode_allocator *next, *prev;
     };
 }
 

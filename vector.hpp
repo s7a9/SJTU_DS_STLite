@@ -39,11 +39,11 @@ namespace s7a9 {
                 return *this;
             }
 
-            iterator operator+(int offset) {
+            iterator operator+(long long offset) {
                 return iterator(_palloc, _idx + offset);
             }
 
-            iterator operator-(int offset) {
+            iterator operator-(long long offset) {
                 return iterator(_palloc, _idx - offset);
             }
 
@@ -64,12 +64,12 @@ namespace s7a9 {
                 return *this;
             }
 
-            iterator& operator+=(int offset) {
+            iterator& operator+=(long long offset) {
                 _idx += offset;
                 return *this;
             }
 
-            iterator& operator-=(int offset) {
+            iterator& operator-=(long long offset) {
                 _idx -= offset;
                 return *this;
             }
@@ -171,7 +171,7 @@ namespace s7a9 {
 
 #ifdef VECTOR_INITIALIZER_LIST_ENABLED
         vector(std::initializer_list<elemType> list) :
-            _allocator(list.size() * 2), _size(list.size()) {
+            _allocator(val_max(list.size() * 2), 10), _size(list.size()) {
             for (auto i = list.begin(); i != list.end(); ++i) {
                 _allocator.construct(i - list.begin(), *i);
             }
@@ -179,17 +179,14 @@ namespace s7a9 {
 #endif
 
         vector(size_t num, const elemType& value) :
-            _allocator(num * 2), _size(num) {
+            _allocator(val_max(num * 2, 10)), _size(num) {
             for (size_t i = 0; i < _size; ++i) {
                 _allocator.construct(i, value);
             }
         }
 
         vector(const vector& x) :
-            _allocator(x._allocator.length()), _size(x._size) {
-            for (size_t i = 0; i < _size; ++i) {
-                _allocator.construct(i, x[i]);
-            }
+            _allocator(x._allocator), _size(x._size) {
         }
 
         vector(vector&& x) noexcept :
@@ -348,8 +345,7 @@ namespace s7a9 {
             size_t pos = position._idx;
             if (pos > _size) throw sjtu::index_out_of_bound();
             for (size_t i = _size; i > pos; --i) {
-                _allocator.construct(i, Move(*_allocator[i - 1]));
-                _allocator.remove(i - 1);
+                _allocator.move_elem(i, i - 1);
             }
             _allocator.construct(pos, x);
             ++_size;
@@ -371,8 +367,7 @@ namespace s7a9 {
             size_t pos = position._idx;
             if (pos > _size) throw sjtu::index_out_of_bound();
             for (size_t i = _size; i > pos; --i) {
-                _allocator.construct(i, Move(*_allocator[i - 1]));
-                _allocator.remove(i - 1);
+                _allocator.move_elem(i, i - 1);
             }
             _allocator.construct(pos, x);
             ++_size;
@@ -380,19 +375,19 @@ namespace s7a9 {
         }
 
         iterator insert(const_iterator position, size_t n, const elemType& x) {
-            if (_allocator.length() == _size + n) {
-                _allocator.reallocate(_allocator.length() * 2);
+            if (n == 0) return end();
+            if (_allocator.length() <= _size + n) {
+                _allocator.reallocate((_size + n) * 2);
             }
             size_t pos = position._idx;
             if (pos > _size) throw sjtu::index_out_of_bound();
             for (size_t i = _size; i > pos; --i) {
-                _allocator.construct(i + n - 1, Move(*_allocator[i - 1]));
-                _allocator.remove(i - 1);
+                _allocator.move_elem(i + n - 1, i - 1);
             }
             for (size_t i = 0; i < n; ++i)
                 _allocator.construct(pos + i, x);
             _size += n;
-            return iterator(&_allocator, pos);
+            return iterator(&_allocator, pos + n - 1);
         }
 
         iterator erase(size_t idx) {
@@ -405,11 +400,10 @@ namespace s7a9 {
                 throw sjtu::index_out_of_bound();
             }
             _allocator.remove(pos);
-            for (size_t i = pos; i < _size; ++i) {
-                _allocator.construct(i, Move(*_allocator[i + 1]));
-                _allocator.remove(i + 1);
-            }
             --_size;
+            for (size_t i = pos; i < _size; ++i) {
+                _allocator.move_elem(i, i + 1);
+            }
             if (_size < _allocator.length() / 2 && _allocator.length() > 10) {
                 _allocator.reallocate(_allocator.length() / 2);
             }
@@ -425,8 +419,7 @@ namespace s7a9 {
                 _allocator.remove(i);
             }
             while (pos2 < _size) {
-                _allocator.construct(pos1, Move(*_allocator[pos2]));
-                _allocator.remove(pos2);
+                _allocator.move_elem(pos1, pos2);
                 ++pos1, ++pos2;
             }
             _size -= pos2 - pos1;
