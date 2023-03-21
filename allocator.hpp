@@ -310,24 +310,6 @@ namespace s7a9 {
             s7a9::swap(_num, other._num);
         }
     };
-
-    template <class elemType>
-    class __linknode_allocator : public __malloc_allocator<elemType> {
-    public:
-        __linknode_allocator(const size_t num, const __linknode_allocator* next) noexcept :
-            __malloc_allocator<elemType>(num), next(next) {}
-
-        __linknode_allocator* next;
-    };
-
-    template <class elemType>
-    class __blinknode_allocator : public __malloc_allocator<elemType> {
-    public:
-        __blinknode_allocator(const size_t num, const __blinknode_allocator* next, const __blinknode_allocator* prev) noexcept :
-            __malloc_allocator<elemType>(num), next(next), prev(prev) {}
-
-        __blinknode_allocator *next, *prev;
-    };
 }
 
 #endif // STLITE_ALLOCATOR_HPP

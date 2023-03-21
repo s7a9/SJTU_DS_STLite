@@ -1,6 +1,26 @@
 #ifndef STLITE_UTILITIES_HPP
 #define STLITE_UTILITIES_HPP
 
+namespace sjtu {
+    template<class T1, class T2>
+    class pair {
+    public:
+        T1 first;
+        T2 second;
+        constexpr pair() : first(), second() {}
+        pair(const pair& other) = default;
+        pair(pair&& other) = default;
+        pair(const T1& x, const T2& y) : first(x), second(y) {}
+        template<class U1, class U2>
+        pair(U1&& x, U2&& y) : first(x), second(y) {}
+        template<class U1, class U2>
+        pair(const pair<U1, U2>& other) : first(other.first), second(other.second) {}
+        template<class U1, class U2>
+        pair(pair<U1, U2>&& other) : first(other.first), second(other.second) {}
+    };
+
+}
+
 namespace s7a9 {
     template <typename T> struct RemoveReference {
         typedef T type;
@@ -35,6 +55,9 @@ namespace s7a9 {
         if (a < b) return a;
         else return b;
     }
+
+    template <class T1, class T2>
+    using pair = sjtu::pair<T1, T2>;
 }
 
 #endif // STLITE_UTILITIES_HPP
