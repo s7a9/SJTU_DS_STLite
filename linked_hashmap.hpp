@@ -176,11 +176,11 @@ namespace sjtu {
 		 * return a iterator to the beginning
 		 */
 		inline iterator begin() {
-			return iterator(this->_begin, this->_end);
+			return iterator(this->_begin, &this->_end);
 		}
 
 		inline const_iterator cbegin() const {
-			return const_iterator(this->_begin, this->_end);
+			return const_iterator(this->_begin, &this->_end);
 		}
 
 		/**
@@ -188,11 +188,11 @@ namespace sjtu {
 		 * in fact, it returns past-the-end.
 		 */
 		inline iterator end() {
-			return iterator(nullptr, this->_end);
+			return iterator(nullptr, &this->_end);
 		}
 
 		inline const_iterator cend() const {
-			return const_iterator(nullptr, this->_end);
+			return const_iterator(nullptr, &this->_end);
 		}
 
 		/**
@@ -233,10 +233,10 @@ namespace sjtu {
 				_expand();
 			linknode_t*& pos = _find(value.first);
 			if (pos && _equal(value.first, pos->data.first)) {
-				return sjtu::pair<iterator, bool>(iterator(pos, this->_end), false);
+				return sjtu::pair<iterator, bool>(iterator(pos, &this->_end), false);
 			}
 			pos = this->_insert(nullptr, new linknode_t(value));
-			return sjtu::pair<iterator, bool>(iterator(pos, this->_end), true);
+			return sjtu::pair<iterator, bool>(iterator(pos, &this->_end), true);
 		}
 
 		/**
@@ -256,7 +256,7 @@ namespace sjtu {
 			}
 			linknode_t*& node = _find(pos->first), * tmp_node = node;
 			if (node == nullptr) return end();
-			iterator ret_iter(this->_erase(node), this->_end);
+			iterator ret_iter(this->_erase(node), &this->_end);
 			node = node->hash_next;
 			delete tmp_node;
 			return ret_iter;
@@ -279,11 +279,11 @@ namespace sjtu {
 		 *   If no such element is found, past-the-end (see end()) iterator is returned.
 		 */
 		inline iterator find(const Key& key) {
-			return iterator(_find(key), this->_end);
+			return iterator(_find(key), &this->_end);
 		}
 
 		inline const_iterator find(const Key& key) const {
-			return const_iterator(_find(key), this->_end);
+			return const_iterator(_find(key), &this->_end);
 		}
 	};
 
