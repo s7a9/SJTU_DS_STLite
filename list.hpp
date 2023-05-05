@@ -2,35 +2,37 @@
 #define SJTU_LIST_HPP
 
 #include "exceptions.hpp"
-#include "algorithm.hpp"
 
 #include <climits>
 #include <cstddef>
 
 namespace sjtu {
+
+template <typename T>
+class _listnode_t {
+public:
+    T data;
+    _listnode_t* prev, * next;
+
+    explicit _listnode_t(const T& data) :
+        data(data), prev(nullptr), next(nullptr) {}
+
+    explicit _listnode_t(T&& data) :
+        data(data), prev(nullptr), next(nullptr) {}
+};
+
 /**
  * a data container like std::list
  * allocate random memory addresses for data and they are doubly-linked in a list.
  */
-template<typename T>
+template<typename T, class node_t = _listnode_t<T>>
 class list {
-protected:
-    class node {
-    public:
-        T data;
-        node* prev, * next;
-
-        explicit node(const T& data) :
-            data(data) {}
-
-        explicit node(T&& data) :
-            data(data) {}
-    };
-
 protected:
     /**
      * add data members for linked list as protected members
      */
+    using node = node_t;
+
     node* _begin, * _end;
 
     size_t _size;
@@ -39,17 +41,12 @@ protected:
      * insert node cur before node pos
      * return the inserted node cur
      */
-    node *insert(node *pos, node *cur) {
-        if (cur == nullptr) throw sjtu::invalid_iterator();
+    node *_insert(node *pos, node *cur) noexcept {
         ++_size;
         if (pos == nullptr) { // insert at end of the list
             cur->prev = _end, cur->next = nullptr;
-            if (_end) {
-                _end->next = cur;
-            }
-            else {
-                _begin = cur;
-            }
+            if (_end) _end->next = cur;
+            else _begin = cur;
             return _end = cur; // update _end
         }
         cur->next = pos, cur->prev = pos->prev;
@@ -62,8 +59,8 @@ protected:
      * remove node pos from list (no need to delete the node)
      * return the removed node pos
      */
-    node *erase(node *pos) {
-        if (pos == nullptr) throw sjtu::invalid_iterator();
+    node *_erase(node *pos) noexcept {
+        // if (pos == nullptr) throw sjtu::invalid_iterator();
         --_size;
         if (pos->next) pos->next->prev = pos->prev;
         else _end = pos->prev;
@@ -96,24 +93,40 @@ protected:
         _quick_sort(nds, l, i), _quick_sort(nds, i, r);
     }
 
+    void _clear() {
+        if (_begin == nullptr || _end == nullptr) return;
+        while (_begin != _end) {
+            _begin = _begin->next;
+            delete _begin->prev;
+        }
+        delete _end;
+        _begin = _end = nullptr;
+        _size = 0;
+    }
+
 public:
     class const_iterator;
     class iterator {
     private:
-        node* _p, *& _end; // The reference _end refers to the pointer _end from the list
+        node* _p, ** _end; // The reference _end refers to the pointer _end from the list
 
         friend const_iterator;
 
         friend list;
 
     public:
-        iterator(node* p, node*& end) : _p(p), _end(end) {}
+        iterator() : _p(nullptr), _end(nullptr) {}
+
+        iterator(node* p, node*& end) : _p(p), _end(&end) {}
+
+        iterator(node* p, node** end) : _p(p), _end(end) {}
 
         iterator(const iterator& other) :
             _p(other._p), _end(other._end) {}
 
         iterator& operator= (const iterator& rhs) {
             _p = rhs._p;
+            _end = rhs._end;
             return *this;
         }
         /**
@@ -149,7 +162,7 @@ public:
             if (_p) {
                 _p = _p->prev;
             }
-            else if (_end) _p = _end;
+            else if (_end && *_end) _p = *_end;
             else throw sjtu::invalid_iterator();
             return *this;
         }
@@ -173,19 +186,19 @@ public:
          * a operator to check whether two iterators are same (pointing to the same memory).
          */
         bool operator==(const iterator &rhs) const {
-            return _p == rhs._p;
+            return _p == rhs._p && _end == rhs._end;
         }
         bool operator==(const const_iterator &rhs) const {
-            return _p == rhs._p;
+            return _p == rhs._p && _end == rhs._end;
         }
         /**
          * some other operator for iterator.
          */
         bool operator!=(const iterator &rhs) const {
-            return _p != rhs._p;
+            return !(*this == rhs);
         }
         bool operator!=(const const_iterator &rhs) const {
-            return _p != rhs._p;
+            return !(*this == rhs);
         }
     };
     /**
@@ -195,19 +208,30 @@ public:
      */
     class const_iterator {
     private:
-        const node* _p, *const& _end;
+        const node* _p, *const* _end;
 
         friend iterator;
 
     public:
+        const_iterator() : _p(nullptr), _end(nullptr) {}
+
         const_iterator(const const_iterator& iter) :
             _p(iter._p), _end(iter._end) {}
 
         const_iterator(const iterator& iter) :
             _p(iter._p), _end(iter._end) {}
 
-        explicit const_iterator(node* p, const node *const& end) :
+        explicit const_iterator(const node* p, const node * const& end) :
+            _p(p), _end(&end) {}
+
+        explicit const_iterator(const node* p, const node * const* end) :
             _p(p), _end(end) {}
+
+
+
+
+
+
 
 
         /**
@@ -243,7 +267,7 @@ public:
             if (_p) {
                 _p = _p->prev;
             }
-            else if (_end) _p = _end;
+            else if (_end && *_end) _p = *_end;
             else throw sjtu::invalid_iterator();
             return *this;
         }
@@ -260,26 +284,26 @@ public:
          * remember to throw if iterator is invalid
          */
         const T* operator ->() const {
-            if (_p) return _p->data;
+            if (_p) return &_p->data;
             throw sjtu::invalid_iterator();
         }
         /**
          * a operator to check whether two iterators are same (pointing to the same memory).
          */
         bool operator==(const iterator& rhs) const {
-            return _p == rhs._p;
+            return _p == rhs._p && _end == rhs._end;
         }
         bool operator==(const const_iterator& rhs) const {
-            return _p == rhs._p;
+            return _p == rhs._p && _end == rhs._end;
         }
         /**
          * some other operator for iterator.
          */
         bool operator!=(const iterator& rhs) const {
-            return _p != rhs._p;
+            return !(*this == rhs);
         }
         bool operator!=(const const_iterator& rhs) const {
-            return _p != rhs._p;
+            return !(*this == rhs);
         }
     };
     /**
@@ -292,7 +316,7 @@ public:
         _begin = _end = nullptr;
         _size = 0;
         for (node* nd = other._begin; nd; nd = nd->next) {
-            insert(nullptr, new node(nd->data));
+            _insert(nullptr, new node(nd->data));
         }
     }
 
@@ -305,16 +329,16 @@ public:
      * TODO Destructor
      */
     virtual ~list() {
-        clear();
+        _clear();
     }
     /**
      * TODO Assignment operator
      */
     list &operator=(const list &other) {
         if (this == &other) return *this;
-        clear();
+        _clear();
         for (node* nd = other._begin; nd; nd = nd->next) {
-            insert(nullptr, new node(nd->data));
+            _insert(nullptr, new node(nd->data));
         }
         return *this;
     }
@@ -336,6 +360,7 @@ public:
     iterator begin() {
         return iterator(_begin, _end);
     }
+
     const_iterator cbegin() const {
         return const_iterator(_begin, _end);
     }
@@ -346,7 +371,7 @@ public:
         return iterator(nullptr, _end);
     }
     const_iterator cend() const {
-        return const_iterator(nullptr, _end);
+        return const_iterator(nullptr, &_end);
     }
     /**
      * checks whether the container is empty.
@@ -364,15 +389,8 @@ public:
     /**
      * clears the contents
      */
-    virtual void clear() {
-        if (_begin == nullptr || _end == nullptr) return;
-        while (_begin != _end) {
-            _begin = _begin->next;
-            delete _begin->prev;
-        }
-        delete _end;
-        _begin = _end = nullptr;
-        _size = 0;
+    inline void clear() {
+        _clear();
     }
     /**
      * insert value before pos (pos may be the end() iterator)
@@ -380,13 +398,13 @@ public:
      * throw if the iterator is invalid
      */
     virtual iterator insert(iterator pos, const T &value) {
-        if (&_end != &pos._end) throw invalid_iterator();
-        return iterator(insert(pos._p, new node(value)), _end);
+        if (&_end != pos._end) throw invalid_iterator();
+        return iterator(_insert(pos._p, new node(value)), _end);
     }
 
     virtual iterator insert(iterator pos, T&& value) {
-        if (&_end != &pos._end) throw invalid_iterator();
-        return iterator(insert(pos._p, new node(value)), _end);
+        if (&_end != pos._end) throw invalid_iterator();
+        return iterator(_insert(pos._p, new node(value)), _end);
     }
     /**
      * remove the element at pos (the end() iterator is invalid)
@@ -396,7 +414,7 @@ public:
     virtual iterator erase(iterator pos) {
         if (empty()) throw sjtu::container_is_empty();
         if (pos._p == nullptr) throw sjtu::invalid_iterator();
-        iterator ret(erase(pos._p), _end);
+        iterator ret(_erase(pos._p), _end);
         delete pos._p;
         return ret;
     }
@@ -404,11 +422,11 @@ public:
      * adds an element to the end
      */
     void push_back(const T &value) {
-        insert(nullptr, new node(value));
+        _insert(nullptr, new node(value));
     }
 
     void push_back(T&& value) {
-        insert(nullptr, new node(value));
+        _insert(nullptr, new node(value));
     }
     /**
      * removes the last element
@@ -417,18 +435,18 @@ public:
     void pop_back() {
         if (empty()) throw sjtu::container_is_empty();
         node* nd = _end;
-        erase(_end);
+        _erase(_end);
         delete nd;
     }
     /**
      * inserts an element to the beginning.
      */
     void push_front(const T &value) {
-        insert(_begin, new node(value));
+        _insert(_begin, new node(value));
     }
 
     void push_front(T&& value) {
-        insert(_begin, new node(value));
+        _insert(_begin, new node(value));
     }
     /**
      * removes the first element.
@@ -437,7 +455,7 @@ public:
     void pop_front() {
         if (empty()) throw sjtu::container_is_empty();
         node* nd = _begin;
-        erase(_begin);
+        _erase(_begin);
         delete nd;
     }
     /**
@@ -453,7 +471,7 @@ public:
         _begin = _end = nullptr;
         _size = 0;
         _quick_sort(nds, 0, new_size);
-        for (i = 0; i < new_size; ++i) insert(nullptr, nds[i]);
+        for (i = 0; i < new_size; ++i) _insert(nullptr, nds[i]);
         delete[] nds;
     }
     /**
@@ -471,23 +489,23 @@ public:
         while (nd1 && nd2) {
             if (nd2->data < nd1->data) {
                 tmp_pnd = nd2->next;
-                insert(nullptr, nd2);
+                _insert(nullptr, nd2);
                 nd2 = tmp_pnd;
             }
             else {
                 tmp_pnd = nd1->next;
-                insert(nullptr, nd1);
+                _insert(nullptr, nd1);
                 nd1 = tmp_pnd;
             }
         }
         while (nd1) {
             tmp_pnd = nd1->next;
-            insert(nullptr, nd1);
+            _insert(nullptr, nd1);
             nd1 = tmp_pnd;
         }
         while (nd2) {
             tmp_pnd = nd2->next;
-            insert(nullptr, nd2);
+            _insert(nullptr, nd2);
             nd2 = tmp_pnd;
         }
     }
@@ -501,7 +519,7 @@ public:
         _size = 0;
         while (cur_nd) {
             nxt_nd = cur_nd->prev;
-            insert(nullptr, cur_nd);
+            _insert(nullptr, cur_nd);
             cur_nd = nxt_nd;
         }
     }
@@ -515,13 +533,18 @@ public:
         while (nd && nd->next) {
             if (nd->data == nd->next->data) {
                 nxt_nd = nd->next;
-                erase(nd->next);
+                _erase(nd->next);
                 delete nxt_nd;
             }
             else {
                 nd = nd->next;
             }
         }
+    }
+
+protected:
+    inline bool _check_iterator(const iterator& iter) const {
+        return iter._end && *iter._end == _end;
     }
 };
 

@@ -1,12 +1,12 @@
 all: compile run sanitizer
 
 compile:
-	g++ -o main main.cpp -g
+	g++ -o main main.cpp -g -O2
 
 run:
-	valgrind ./main
+	valgrind ./main > ans.out
 
 sanitizer:
-	g++ -o main main.cpp -g -fsanitize=address
-	./main
+	g++ -o main main.cpp -g -O2 -fsanitize=address
+	./main > ans.out
 

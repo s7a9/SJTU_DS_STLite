@@ -40,7 +40,6 @@ namespace sjtu {
 			static Compare _comp;
 			node_t* head = nullptr, * cur = nullptr, * fa = nullptr, * son = nullptr, * lst = nullptr;
 			// merge two sorted linktables to one
-			bool select;
 			while (head1 && head2) {
 				if (head1->degree < head2->degree) {
 					if (head == nullptr) head = head1;
@@ -131,6 +130,12 @@ namespace sjtu {
 			_head = _copy_recursive(other._head, nullptr);
 			_update_top();
 		}
+
+		__binary_heap(__binary_heap&& other) : 
+			_size(other._size), _head(other._head), _ptop(other._ptop) {
+			other._size = 0;
+			other._head = other._ptop = nullptr;
+		}
 		/**
 		 * TODO deconstructor
 		 */
@@ -180,6 +185,7 @@ namespace sjtu {
 		void pop() {
 			if (empty()) throw sjtu::container_is_empty();
 			node_t* son_cur, * son_lst = nullptr, * son_nxt;
+			// remove _ptop from the heap
 			if (_head == _ptop) _head = _ptop->nxt;
 			else {
 				for (node_t* cur = _head; cur->nxt; cur = cur->nxt) {
@@ -189,6 +195,7 @@ namespace sjtu {
 					}
 				}
 			}
+			// the sons of _ptop have decreasing degrees, so connnect them backwards before merging
 			for (son_cur = _ptop->son; son_cur; son_cur = son_nxt) {
 				son_cur->fa = nullptr;
 				son_nxt = son_cur->nxt;
