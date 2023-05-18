@@ -175,25 +175,10 @@ namespace sjtu {
 		}
 
 		// give father node *pos* and insert one pair
-		inline Node* _insert(Node* pos, value_type&& val) {
-			Node* nd = new Node(val, Node::RED, pos);
+		inline Node* _insert(Node* pos, Node* nd) {
 			++_size;
 			if (pos) {
-				pos->_son[_comp(pos->_val.first, val.first)] = nd;
-				_solve_double_red(nd);
-				return nd;
-			}
-			else { // The tree is empty
-				nd->_clr = Node::BLK;
-				return _root = nd;
-			}
-		}
-
-		inline Node* _insert(Node* pos, const value_type& val) {
-			Node* nd = new Node(val, Node::RED, pos);
-			++_size;
-			if (pos) {
-				pos->_son[_comp(pos->_val.first, val.first)] = nd;
+				pos->_son[_comp(pos->_val.first, nd->_val.first)] = nd;
 				_solve_double_red(nd);
 				return nd;
 			}
@@ -595,10 +580,6 @@ namespace sjtu {
 				return _ptr != rhs._ptr || _root != rhs._root;
 			}
 
-			/**
-			 * for the support of it->first.
-			 * See <http://kelvinh.github.io/blog/2013/11/20/overloading-of-member-access-operator-dash-greater-than-symbol-in-cpp/> for help.
-			 */
 			const value_type* operator->() const noexcept {
 				return &(_ptr->_val);
 			}
@@ -661,7 +642,7 @@ namespace sjtu {
 		T& operator[](const Key& key) {
 			Node* nd = _root;
 			if (_locate(key, nd)) return nd->_val.second;
-			return _insert(nd, value_type(key, T()))->_val.second;
+			return _insert(nd, new Node(value_type(key, T()), Node::RED, nd))->_val.second;
 		}
 
 		/**
@@ -741,7 +722,7 @@ namespace sjtu {
 				);
 			}
 			return pair<iterator, bool>(
-				iterator(_insert(nd, value), &_root),
+				iterator(_insert(nd, new Node(value, Node::RED, nd)), &_root),
 				true
 			);
 		}
@@ -755,7 +736,7 @@ namespace sjtu {
 				);
 			}
 			return pair<iterator, bool>(
-				iterator(_insert(nd, value), &_root),
+				iterator(_insert(nd, new Node(value, Node::RED, nd)), &_root),
 				true
 			);
 		}
@@ -768,9 +749,7 @@ namespace sjtu {
 		void erase(iterator pos) {
 			if (pos._ptr == nullptr ||
 				pos._root != &_root) throw sjtu::invalid_iterator();
-			Node* nd = _root;
-			if (_locate(pos->first, nd)) _erase(nd);
-			else throw sjtu::invalid_iterator();
+			_erase(pos._ptr);
 		}
 
 		/**
